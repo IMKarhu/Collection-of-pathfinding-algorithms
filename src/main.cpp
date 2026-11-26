@@ -1,8 +1,10 @@
 #include "grid.h"
 #include "searchrunner.h"
 #include "raygui.h"
-#include <print>
 #include <array>
+#include <string>
+#include <string_view>
+#include <ranges>
 
 enum class Brush
 {
@@ -46,9 +48,8 @@ int main()
     SearchRunner runner;
     AlgorithmSettings settings;
     Brush brush = Brush::None;
-
     constexpr float panelwidth = 220.0f;
-    bool showpanel = false;
+    bool showpanel = true;
 
     const std::string algorithmlabels = algorithms
         | std::views::transform([](const AlgorithmInfo& a) {return std::string_view{a.name}; })
@@ -63,6 +64,9 @@ int main()
             settings.running = false;
         }
         previous = settings;
+        if (runner.finished()) {
+            settings.running = false;
+        }
 
         const float screenwidth = (float)GetScreenWidth();
         const float screenheight = (float)GetScreenHeight();
@@ -88,6 +92,7 @@ int main()
             y += nritems * (h + 8);
             return r;
         };
+
         const Vector2 mouse = GetMousePosition();
         if (CheckCollisionPointRec(mouse, gridrect)) {
             if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
@@ -127,32 +132,34 @@ int main()
             showpanel = !showpanel;
         }
         if (IsKeyPressed(KEY_C)) {
-            std::println("Cleared all walls");
             grid.clearWalls();
             runner.reset();
             settings.running = false;
         }
-        if (IsKeyPressed(KEY_ENTER)) {
-            runner.start(algorithms[settings.algorithm].func, grid, settings.diagonals);
-            settings.running = true;
-        }
         if (IsKeyPressed(KEY_SPACE)) {
             settings.running = !settings.running;
         }
-        if (IsKeyDown(KEY_N)) {
+        if (IsKeyPressed(KEY_N)) {
             runner.step();
         }
+
         if (settings.running) {
             runner.step(settings.stepsperframe);
         }
-
         BeginDrawing();
         ClearBackground(DARKGRAY);
         drawGrid(grid, gridrect, &runner.state());
         if (showpanel) {
             GuiPanel(controlpanel, "Settings");
-            if(GuiButton(rect(30), settings.running ? "Pause" : "Run")) {
-                std::println("pressed");
+            if (GuiButton(rect(30), settings.running ? "Pause" : "Run")) {
+                if (!settings.running) {
+                    if (!runner.active() || runner.finished()) {
+                        runner.start(algorithms[settings.algorithm].func, grid, settings.diagonals);
+                    }
+                    settings.running = true;
+                } else {
+                    settings.running = !settings.running;
+                }
             }
             GuiCheckBox(rect(10, 30), "Diagonal movement", &settings.diagonals);
             GuiToggleGroup(rect(30, 100, (float)algorithms.size()), algorithmlabels.c_str(), &settings.algorithm);
